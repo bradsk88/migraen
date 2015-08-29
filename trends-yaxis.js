@@ -1,7 +1,164 @@
 document.addEventListener("DOMContentLoaded", function() {
-	addLogButton();
+	addScaleButton();
 });
 
+function addScaleButton() {
+	var container = document.getElementById("graph-container");
+	if (!container) {
+		setTimeout(addScaleButton, 100);
+		return;
+	}
+	var labels = getYAxisLabels();
+	if (!labels || labels.length == 0) {
+		setTimeout(addScaleButton, 100);
+		return;	
+	}
+
+	var min = Number.MAX_VALUE;
+	var max = -Number.MAX_VALUE;
+
+	var i;
+	for (i=0; i < labels.length; i++) {
+		var text = labels[i].textContent.replace(/\$|,/gi,'');
+		min = Math.min(min, text);
+		max = Math.max(max, text);
+	}
+
+	var minInput = document.createElement("input");
+	minInput.setAttribute("type","text");
+	minInput.setAttribute("value", min);
+
+	var maxInput = document.createElement("input");
+	maxInput.setAttribute("type","text");
+	maxInput.setAttribute("value", max);
+
+	var button = document.createElement("button");
+	button.innerHTML = "Adjust Scale";
+	button.onclick = function() {
+		adjustScale(parseInt(minInput.value), parseInt(maxInput.value));
+	}
+	container.appendChild(minInput);
+	container.appendChild(maxInput);
+	container.appendChild(button);
+
+}
+
+var barValues = [];
+
+function adjustScale(bottom, top) {
+	var labels = getYAxisLabels();
+	if (!labels || labels.length == 0) {
+		if (colorTimeout > 2000) {
+			return;
+		}
+		colorTimeout = colorTimeout + 100;
+		setTimeout(switchToLog, 100);
+		return;
+	}
+
+	var i;
+	var min = Number.MAX_VALUE;
+	var max = -Number.MAX_VALUE;
+	originalLabels = [];
+	for (i=0; i < labels.length; i++) {
+		var text = labels[i].textContent.replace(/\$|,/gi,'');
+		originalLabels.push(labels[i].textContent);
+		min = Math.min(min, text);
+		max = Math.max(max, text);
+	}
+
+	var height = max - min;
+	var newHeight = top - bottom;
+
+	var axisLabels = [];
+	var container = document.getElementById("graph-container");
+	if (!container) {
+		return [];
+	}
+	var graphics = container.getElementsByTagName("svg")
+	if (!graphics || graphics.length == 0) {
+		return [];
+	}
+	var graphic = graphics[0];
+	
+	var shiftedValues = [];
+	var distance = max - min;
+	for (i=0; i < labels.length - 1; i++) {
+		var value = (newHeight / (labels.length - 1)) * i;
+		shiftedValues.push(Math.round(bottom + value));
+	}
+	shiftedValues.push(top);
+	for (i=0; i < labels.length; i++) {
+		labels[i].textContent = '$' + shiftedValues[i];
+	}
+	
+	var bars = graphic.getElementsByTagName("path");
+	var k;
+
+	var lines = bars[0].getAttribute('d');
+	var linesD = lines.split('L');
+	var topOfGraphY = linesD[linesD.length-1].split(',')[1];
+	for (k=0; k < bars.length; k++) {
+
+		
+		var d = bars[k].getAttribute('d');
+		var parts = d.split(',');
+		var idx = parts[1].indexOf('V');
+		if (idx < 0) { // Not a bar
+			continue;
+		}
+
+		var theRest = d;
+
+		var start = theRest.split('V')[0].replace('M','');
+		var bottomOfGraphY = start.split(',')[1];
+		
+		var barValue = 0;
+		if (barValues.length >= k) {
+			barValue = barValues[k];
+		} else {
+			theRest = theRest.split('V')[1] + "V" + theRest.split('V')[2];
+
+			var topLeftX = start.split(',')[0];
+			var topLeftY = theRest.split('A')[0];
+	
+			theRest = theRest.split('A')[1] + "A" + theRest.split('A')[2];
+		
+			var topTopY = theRest.split(',')[6];
+			topTopY = topTopY.split('H')[0];
+	
+			var topLeftTopX = theRest.split(',')[5];
+			theRest = theRest.split('H')[1]
+	
+			var topRightTopX = theRest.split('A')[0];
+			theRest = theRest.split('A')[1]
+	
+			var topRightX = theRest.split(',')[5];
+			var topRightY = theRest.split(',')[6].split('V')[0];
+	
+			var bottomRightX = theRest.split(',')[5];
+			var bottomRightY = theRest.split('V')[1];
+			
+			var graphHeight = bottomOfGraphY - topOfGraphY;
+			var barHeight = bottomRightY - topTopY;
+			
+			var barDecimal = barHeight / graphHeight;
+			barValue = (height * barDecimal) + min;
+		}
+
+		var newBarDecimal = (barValue-bottom) / newHeight
+		if (barValue < bottom) {
+			newBarDecimal = 0;
+		}		
+
+		var newBarHeight = newBarDecimal * graphHeight;
+		var extraHeight = newBarHeight - barHeight;
+		
+		var b = "M" + start + "V" + (topLeftY - extraHeight) + "A5,5,0,0,1," + topLeftTopX + "," + (topTopY - extraHeight) + 
+				 "H" + topRightTopX + "A5,5,0,0,1," + topRightX + "," + (topRightY - extraHeight) + "V" + bottomRightY; 
+		bars[k].setAttribute('d', b);		
+	}	
+}
 
 function addLogButton() {
 	var container = document.getElementById("graph-container");
@@ -17,6 +174,7 @@ function addLogButton() {
 	container.appendChild(button);
 
 }
+
 var colorTimeout = 0;
 var originalLabels = [];
 var originalValues = [];
@@ -42,6 +200,7 @@ function switchToLog(button) {
 		min = Math.min(min, text);
 		max = Math.max(max, text);
 	}
+
 
 	var logValues = [];
 	var distance = max - min;
