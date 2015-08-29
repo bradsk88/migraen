@@ -1,0 +1,12 @@
+{
+	"manifest_version": 2,
+	"name": "Migraen",
+	"version": "0.1",
+	"content_scripts": [
+		{
+			"matches": ["https://wwws.mint.com/trend.event"],
+			"js": ["trends-yaxis.js"],
+			"run_at": "document_start"
+		}
+	]
+}
